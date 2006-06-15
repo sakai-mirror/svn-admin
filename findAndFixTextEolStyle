@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+
+sub TRUE  { 1; }
+sub FALSE { 0; }
+
+$rootDir = "/Users/lance/tmp/svn";
+
+open(FIND, "find $rootDir -print |") || die "$!";
+while(<FIND>)
+{
+  if(/.*\.svn.*/) # skip .svn directories
+  {
+    next;
+  }
+  chomp;
+  $fileName = $_;
+  open(FILE, "file --brief $fileName |") || die "$!";
+  while(<FILE>)
+  {
+    chomp;
+    $fileReturn = $_;
+    if(/text/i) # found a text document
+    {
+      $nativeEol = FALSE;
+#      print "$fileName: $fileReturn\n";
+      open(PROPGET, "svn propget svn:eol-style $fileName --non-interactive |") || die "$!";
+      while(<PROPGET>)
+      {
+        chomp;
+        $propGet = $_;
+        if(/native/i)
+        {
+          $nativeEol = TRUE;
+        }
+      }
+      close(PROPGET) || die "$!";
+
+      if($nativeEol == FALSE)
+      {
+        print "svn propset svn:eol-style native $fileName\n";
+        open(SVN, "svn propset svn:eol-style native $fileName --non-interactive |") || die "$!";
+        while(<SVN>)
+        {
+          print;
+        }
+        close(SVN) || die "$!";
+      }
+#      else { print "native: $fileName\n"; }
+    }
+  }
+  close(FILE) || die "$!";
+}
+close(FIND) || die "$!";

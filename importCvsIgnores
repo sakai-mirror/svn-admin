@@ -1,0 +1,23 @@
+#!/usr/bin/perl
+
+sub TRUE  { 1; }
+sub FALSE { 0; }
+
+$rootDir = "/Users/lance/tmp/foo/sakai-maven-plugin";
+
+open(FIND, "find $rootDir -name .cvsignore -print |") || die "$!";
+while(<FIND>)
+{
+  chomp;
+  $cvsIgnoreFullPath = $_;
+
+  if(/(.*)\/(.+)$/)
+  {
+    $dir = $1;
+#    print "Import $cvsIgnoreFullPath for directory $dir\n";
+    open(SVN, "svn propset svn:ignore -F $cvsIgnoreFullPath $dir --non-interactive |") || die "$!";
+    while(<SVN>) { print; }
+    close(SVN) || die "$!";
+  }
+}
+close(FIND) || die "$!";
