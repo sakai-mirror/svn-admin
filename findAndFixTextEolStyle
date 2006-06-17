@@ -3,12 +3,16 @@
 sub TRUE  { 1; }
 sub FALSE { 0; }
 
-$rootDir = "/Users/lance/tmp/svn";
+$rootDir = "/Users/lance/tmp/eol";
 
 open(FIND, "find $rootDir -print |") || die "$!";
 while(<FIND>)
 {
-  if(/.*\.svn.*/) # skip .svn directories
+  if(/\/\.svn/) # skip .svn directories
+  {
+    next;
+  }
+  if(/\/tags\//) # skip tags directories
   {
     next;
   }
