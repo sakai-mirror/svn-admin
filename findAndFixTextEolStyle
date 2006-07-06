@@ -3,7 +3,7 @@
 sub TRUE  { 1; }
 sub FALSE { 0; }
 
-$rootDir = "/Users/lance/tmp/eol";
+$rootDir = "/Users/lance/tmp/eol/whitman";
 
 open(FIND, "find $rootDir -print |") || die "$!";
 while(<FIND>)
