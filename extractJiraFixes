@@ -1,0 +1,100 @@
+#!/usr/bin/perl
+
+use Getopt::Long;
+#use XML::Simple;
+
+sub TRUE  { 1; }
+sub FALSE { 0; }
+
+my $baseUrl = "https://source.sakaiproject.org/svn/";
+my $SVN_PROP_GET_CMD = "svn propget --non-interactive svn:externals";
+my $SVN_LOG_CMD = "svn log --non-interactive --xml";
+
+my $branch = "https://source.sakaiproject.org/svn/sakai/branches/sakai_2-2-0/";
+
+# process command line options
+my $revision;
+my $debug;
+my $stopOnCopy;
+my $verbose;
+my $command = GetOptions(	"revision=s"	=>	\$revision,		# string
+							"debug"			=>	\$debug,		# flag
+							"stop-on-copy"	=>	\$stopOnCopy,	# flag
+							"verbose"		=>	\$verbose);		# flag
+unless($command){ die "Could not process command line options!\n"; }
+if($debug) { print "args: revision=$revision debug=$debug stopOnCopy=$stopOnCopy verbose=$verbose\n"; }
+
+# process revision option
+my $revLeft = -1; my $revRight = -1;
+if($revision ne "")
+{
+	my @sides = split(/:/, $revision);
+	$revLeft = $sides[0];
+	if($revLeft eq ""){ $revLeft = -1; }
+	$revRight = $sides[1];
+	if($revRight eq ""){ $revRight = -1; }
+	if($debug){ print "revLeft=$revLeft\trevRight=$revRight\n";}
+}
+
+# process svn:externals
+if($debug){ print "$SVN_PROP_GET_CMD $branch\n"; }
+open(SVNPG, "$SVN_PROP_GET_CMD $branch |") || die $!;
+while(<SVNPG>)
+{
+	#regex: assignment              -r12532 https://source.sakaiproject.org/svn/assignment/tags/sakai_2-2-015
+	if(/^(\w+)\s+(.+)?\s+(.+)$/)
+	{
+		my $extModule = $1; my $extRevision = $2; my $extModuleUrl = $3;
+		if($debug){ print "$extModule,$extRevision,$extModuleUrl,\n"; }
+		
+		# compute svn log command line string
+		my $localSvnLogCmd = $SVN_LOG_CMD;
+		if($revision eq "")
+		{	# user did not provide --revision
+			if($extRevision ne "")
+			{	# svn:externals contains --revision
+				my @extRevs = split(/-r/, $extRevision);
+				my $extRevValue = $extRevs[1];
+				$extRevValue += 1; # do not include previous commit
+				$localSvnLogCmd = "$localSvnLogCmd -r $extRevValue:HEAD";
+			}
+		}
+		else 
+		{	# user provided --revision option
+			$localSvnLogCmd = "$localSvnLogCmd -r $revision"; 
+		}
+		if(stopOnCopy gt 0){ $localSvnLogCmd = "$localSvnLogCmd --stop-on-copy"; }
+		$localSvnLogCmd = "$localSvnLogCmd $extModuleUrl";
+		
+		# run svn log command and slurp output
+		if($debug){ print "$localSvnLogCmd\n"; }
+		open(SVNLOG, "$localSvnLogCmd |") || die $!;
+		my $logOutput = do { local( $/ ) ; <SVNLOG> } ;
+		close(SVNLOG) || die $!;
+		
+		# process svn log command output
+		my $logOutputRevision;
+		if($logOutput =~ m/revision\=\"(\d+)\"/){ $logOutputRevision = $1; }
+		my @matches = ($logOutput =~ m/\b([A-Za-z]{1,4}-[0-9]{1,6})\b/g);
+		if($#matches > 0)
+		{
+			foreach my $argnum (0 .. $#matches)
+			{
+				if($matches[$argnum] =~ m/utf-8/)
+				{	# strip out "utf-8" matches
+					delete $matches[$argnum];
+				}
+			}
+		}
+		if($#matches > 0)
+		{	# there are still matches found
+			print "$extModule,r$logOutputRevision,";
+			foreach my $argnum (0 .. $#matches)
+			{
+				if($matches[$argnum] ne ""){ print "$matches[$argnum],"; }
+			}
+			print "\n";
+		}
+	}
+}
+close(SVNPG) || die $!;
