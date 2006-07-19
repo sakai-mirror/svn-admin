@@ -10,19 +10,20 @@ my $baseUrl = "https://source.sakaiproject.org/svn/";
 my $SVN_PROP_GET_CMD = "svn propget --non-interactive svn:externals";
 my $SVN_LOG_CMD = "svn log --non-interactive --xml";
 
-my $branch = "https://source.sakaiproject.org/svn/sakai/branches/sakai_2-2-0/";
-
 # process command line options
+my $branch; # = "https://source.sakaiproject.org/svn/sakai/branches/sakai_2-2-0/";
 my $revision;
 my $debug;
 my $stopOnCopy;
 my $verbose;
-my $command = GetOptions(	"revision=s"	=>	\$revision,		# string
+my $command = GetOptions(	"branch=s"		=>	\$branch,		# string
+							"revision=s"	=>	\$revision,		# string
 							"debug"			=>	\$debug,		# flag
 							"stop-on-copy"	=>	\$stopOnCopy,	# flag
 							"verbose"		=>	\$verbose);		# flag
 unless($command){ die "Could not process command line options!\n"; }
-if($debug) { print "args: revision=$revision debug=$debug stopOnCopy=$stopOnCopy verbose=$verbose\n"; }
+if($debug) { print "args: branch=$branch revision=$revision debug=$debug stopOnCopy=$stopOnCopy verbose=$verbose\n"; }
+if($branch eq ""){ die "branch not specified!\n"; }
 
 # process revision option
 my $revLeft = -1; my $revRight = -1;
@@ -88,7 +89,7 @@ while(<SVNPG>)
 		}
 		if($#matches > 0)
 		{	# there are still matches found
-			print "$extModule,r$logOutputRevision,";
+			print "$extModule,";
 			foreach my $argnum (0 .. $#matches)
 			{
 				if($matches[$argnum] ne ""){ print "$matches[$argnum],"; }
