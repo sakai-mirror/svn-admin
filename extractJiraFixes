@@ -84,22 +84,28 @@ while(<SVNPG>)
 		my @matches = ($logOutput =~ m/\b([A-Za-z]{1,4}-[0-9]{1,6})\b/g);
 		if($#matches > 0)
 		{
+			# remove known garbage matches
 			foreach my $argnum (0 .. $#matches)
 			{
-				if($matches[$argnum] =~ m/utf-8/)
+				if($matches[$argnum] =~ m/utf-8/i)
 				{	# strip out "utf-8" matches
 					delete $matches[$argnum];
 				}
 			}
-		}
-		if($#matches > 0)
-		{	# there are still matches found
-			print "$extModule,";
-			foreach my $argnum (0 .. $#matches)
-			{
-				if($matches[$argnum] ne ""){ print "$matches[$argnum],"; }
+			
+			# remove duplicate matches
+			my %saw; undef %saw;
+			my @uniqueMatches = grep(!$saw{$_}++, @matches);
+		
+			if($#uniqueMatches > 0)
+			{	# there are still matches found
+				print "$extModule,";
+				foreach my $argnum (0 .. $#uniqueMatches)
+				{
+					if($uniqueMatches[$argnum] ne ""){ print "$uniqueMatches[$argnum],"; }
+				}
+				print "\n";
 			}
-			print "\n";
 		}
 	}
 }
