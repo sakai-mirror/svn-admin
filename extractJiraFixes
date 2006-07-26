@@ -87,13 +87,14 @@ while(<SVNPG>)
 			# remove known garbage matches
 			foreach my $argnum (0 .. $#matches)
 			{
+				# strip out "utf-8" matches
 				if($matches[$argnum] =~ m/utf-8/i)
-				{	# strip out "utf-8" matches
+				{
 					delete $matches[$argnum];
 				}
 			}
 			
-			# remove duplicate matches
+			# extract unique matches
 			my %saw; undef %saw;
 			my @uniqueMatches = grep(!$saw{$_}++, @matches);
 		
