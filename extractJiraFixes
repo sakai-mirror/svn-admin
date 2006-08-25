@@ -92,6 +92,11 @@ while(<SVNPG>)
 				{
 					delete $matches[$argnum];
 				}
+				# strip out "bash-3" matches
+				if($matches[$argnum] =~ m/bash-3/i)
+				{
+					delete $matches[$argnum];
+				}
 			}
 			
 			# extract unique matches
