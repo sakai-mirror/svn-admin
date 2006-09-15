@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+
+sub TRUE  { 1; }
+sub FALSE { 0; }
+
+$rootDir = "/Users/lance/tmp/foo";
+
+open(FIND, "find $rootDir -print |") || die "$!";
+while(<FIND>)
+{
+  if(/\/\.svn/) # skip .svn directories
+  {
+    next;
+  }
+  if(/\/tags\//) # skip tags directories
+  {
+    next;
+  }
+  if(/\.metaprops$/i) # skip *.metaprops files
+  {
+    next;
+  }
+  chomp;
+  $fileName = $_;
+  open(FILE, "file --brief $fileName |") || die "$!";
+  while(<FILE>)
+  {
+    chomp;
+    $fileReturn = $_;
+    if(/text/i) # found a text document
+    {
+      $svnKeywords = FALSE;
+#      print "$fileName: $fileReturn\n";
+      open(PROPGET, "svn propget svn:keywords $fileName --non-interactive |") || die "$!";
+      while(<PROPGET>)
+      {
+        chomp;
+        $propGet = $_;
+        if(/Date\sRevision\sAuthor\sHeadURL\sId/)
+        {
+          $svnKeywords = TRUE;
+        }
+      }
+      close(PROPGET) || die "$!";
+
+      if($svnKeywords == FALSE)
+      {
+        print "svn propset svn:keywords \"Date Revision Author HeadURL Id\" $fileName\n";
+        open(SVN, "svn propset svn:keywords \"Date Revision Author HeadURL Id\" $fileName --non-interactive |") || die "$!";
+        while(<SVN>)
+        {
+          print;
+        }
+        close(SVN) || die "$!";
+      }
+    }
+  }
+  close(FILE) || die "$!";
+}
+close(FIND) || die "$!";
