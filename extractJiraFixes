@@ -1,0 +1,118 @@
+#!/usr/bin/perl
+
+use Getopt::Long;
+
+my $SVN_BASE_URL = "https://source.sakaiproject.org/svn";
+my $SVN_PROP_GET_CMD = "svn propget --non-interactive svn:externals";
+my $SVN_LOG_CMD = "svn log --non-interactive --xml";
+
+# process command line options
+my $branch; # = "https://source.sakaiproject.org/svn/sakai/branches/sakai_2-2-0/";
+my $override;
+my $revision;
+my $debug;
+my $stopOnCopy;
+my $command = GetOptions(	"branch=s"		=>	\$branch,		# string
+							"override=s"	=>	\$override,		# string
+							"revision=s"	=>	\$revision,		# string
+							"debug"			=>	\$debug,		# flag
+							"stop-on-copy"	=>	\$stopOnCopy);	# flag
+unless($command){ die "Could not process command line options!\n"; }
+if($debug) { print "argv: branch=$branch override=$override revision=$revision debug=$debug stopOnCopy=$stopOnCopy\n"; }
+if($branch eq ""){ die "branch not specified!\n"; }
+
+# process revision option
+my $revLeft = -1; my $revRight = -1;
+if($revision ne "")
+{
+	my @sides = split(/:/, $revision);
+	$revLeft = $sides[0];
+	if($revLeft eq ""){ $revLeft = -1; }
+	$revRight = $sides[1];
+	if($revRight eq ""){ $revRight = -1; }
+	if($debug){ print "revLeft=$revLeft\trevRight=$revRight\n";}
+}
+
+# process svn:externals
+if($debug){ print "$SVN_PROP_GET_CMD $branch\n"; }
+open(SVNPG, "$SVN_PROP_GET_CMD $branch |") || die $!;
+while(<SVNPG>)
+{
+	#regex: assignment              -r12532 https://source.sakaiproject.org/svn/assignment/tags/sakai_2-2-015
+	if(/^(\w+)\s+(.+)?\s+(.+)$/)
+	{
+		my $extModule = $1; my $extRevision = $2; my $extModuleUrl = $3;
+		if($debug){ print "external: $extModule\t$extRevision\t$extModuleUrl\n"; }
+		
+		# compute svn log command line string
+		my $localSvnLogCmd = $SVN_LOG_CMD;
+		if($revision eq "")
+		{	# user did not provide --revision
+			if($extRevision ne "")
+			{	# svn:externals contains --revision
+				my @extRevs = split(/-r/, $extRevision);
+				my $extRevValue = $extRevs[1];
+				$extRevValue += 1; # do not include previous commit
+				$localSvnLogCmd = "$localSvnLogCmd -r $extRevValue:HEAD";
+			}
+		}
+		else 
+		{	# user provided --revision option
+			$localSvnLogCmd = "$localSvnLogCmd -r $revision"; 
+		}
+		
+		if($stopOnCopy > 0){ $localSvnLogCmd = "$localSvnLogCmd --stop-on-copy"; }
+
+		if($override ne "")
+		{	# log against different directory
+			$localSvnLogCmd = "$localSvnLogCmd $SVN_BASE_URL/$extModule/$override";
+		}
+		else
+		{
+			$localSvnLogCmd = "$localSvnLogCmd $extModuleUrl";
+		}
+
+		# run svn log command and slurp output
+		if($debug){ print "$localSvnLogCmd\n"; }
+		open(SVNLOG, "$localSvnLogCmd |") || die $!;
+		my $logOutput = do { local( $/ ) ; <SVNLOG> } ;
+		close(SVNLOG) || die $!;
+		
+		# process svn log command output
+		my $logOutputRevision;
+		if($logOutput =~ m/revision\=\"(\d+)\"/){ $logOutputRevision = $1; }
+		my @matches = ($logOutput =~ m/\b([A-Za-z]{1,4}-[0-9]{1,6})\b/g);
+		if($#matches > 0)
+		{
+			# remove known garbage matches
+			foreach my $argnum (0 .. $#matches)
+			{
+				# strip out "utf-8" matches
+				if($matches[$argnum] =~ m/utf-8/i)
+				{
+					delete $matches[$argnum];
+				}
+				# strip out "bash-3" matches
+				if($matches[$argnum] =~ m/bash-3/i)
+				{
+					delete $matches[$argnum];
+				}
+			}
+			
+			# extract unique matches
+			my %saw; undef %saw;
+			my @uniqueMatches = grep(!$saw{$_}++, @matches);
+		
+			if($#uniqueMatches > 0)
+			{	# there are still matches found
+				print "$extModule,";
+				foreach my $argnum (0 .. $#uniqueMatches)
+				{
+					if($uniqueMatches[$argnum] ne ""){ print "$uniqueMatches[$argnum],"; }
+				}
+				print "\n";
+			}
+		}
+	}
+}
+close(SVNPG) || die $!;
