@@ -9,7 +9,7 @@ svn ls https://source.sakaiproject.org/svn/$1/tags/$2 &> /dev/null
 if [ $? == 1 ]
 then
 echo tagging $1 $2
-svn cp -m "$1 $2 tag" https://source.sakaiproject.org/svn/$1/tags/sakai_2-2-015 https://source.sakaiproject.org/svn/$1/tags/$2
+svn cp -m "$1 $2 tag" https://source.sakaiproject.org/svn/$1/trunk https://source.sakaiproject.org/svn/$1/tags/$2
 else
 echo $1 already tagged $2
 fi
@@ -69,9 +69,16 @@ tag osp $1
 tag jobscheduler $1
 tag providers $1
 tag textarea $1
+tag samples $1
 tag msgcntr $1
 tag postem $1
 tag cluster $1
+tag rights $1
+tag blog $1
+tag linktool $1
+tag privacy $1
+tag podcasts $1
+tag mailtool $1
 
 else
 
