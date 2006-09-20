@@ -78,7 +78,6 @@ tag blog $1
 tag linktool $1
 tag privacy $1
 tag podcasts $1
-tag mailtool $1
 
 else
 
