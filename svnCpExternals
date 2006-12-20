@@ -1,0 +1,122 @@
+#!/usr/bin/perl
+
+use Getopt::Long;
+
+# globals
+my $SVN_BASE_URL = "https://source.sakaiproject.org/svn";
+my $SVN_PROP_GET_CMD = "svn propget --non-interactive svn:externals";
+my $SVN_LS_CMD = "svn ls --non-interactive";
+my $SVN_CP_CMD = "svn cp --non-interactive";
+
+# process command line options
+my $externals;		# = "https://source.sakaiproject.org/svn/sakai/tags/sakai_2-3-0/";
+my $source;			# = tags/sakai-2-3-0
+my $destination;	# = branches/sakai_2-3-1
+my $revision;		# = 19793
+my $message;        # svn commit comment
+my $debug;
+my $command = GetOptions(	"externals=s"	=>	\$externals,	# string
+							"source=s"		=>  \$source,		# string
+							"destination=s"	=>	\$destination,	# string
+							"revision=s"	=>	\$revision,		# string
+							"message=s"		=>	\$message,		# string
+							"debug"			=>	\$debug);		# flag
+unless($command){ die "Could not process command line options!\n"; }
+if($debug) { print "argv: externals=$externals source=$source destination=$destination revision=$revision message=\"$message\" debug=$debug \n"; }
+if($externals eq ""){ die "externals not specified!\n"; }
+if($source eq ""){ die "source is required!\n"; }
+if($destination eq "") { die "destination is required!\n"; }
+if($message eq "") { die "message is required!\n"; }
+
+# process revision option
+if($revision eq "")
+{
+	$revision = "HEAD";
+}
+
+# ensure source exists
+if(verifyAllSourcesExist() < 1){ die "FATAL: One or more sources missing!"; }
+if(verifyAllDestinationsEmpty() < 1){ die "FATAL: One or more destinations already exist!"; }
+
+# process svn:externals
+if($debug){ print "$SVN_PROP_GET_CMD $externals\n"; }
+open(SVNPG, "$SVN_PROP_GET_CMD $externals |") || die $!;
+while(<SVNPG>)
+{
+	#regex: assignment              -r12532 https://source.sakaiproject.org/svn/assignment/tags/sakai_2-2-015
+	if(/^(\w+)\s+(.+)?\s+(.+)$/)
+	{
+		my $extModule = $1; my $extRevision = $2; my $extModuleUrl = $3;
+		if($debug){ print "external: $extModule\t$extRevision\t$extModuleUrl\n"; }
+		
+		# compute svn copy command line string
+		my $sourcePath = "$SVN_BASE_URL/$extModule/$source";
+		my $destPath   = "$SVN_BASE_URL/$extModule/$destination";
+		my $localSvnCopyCmd = "$SVN_CP_CMD -r $revision $sourcePath $destPath -m \"$message\"";
+		if($debug){ print "$localSvnCopyCmd\n"; }
+		system($localSvnCopyCmd);
+	}
+}
+close(SVNPG) || die $!;
+
+sub verifyAllSourcesExist
+{
+	my $allGood = 1;
+	open(SVNPG1, "$SVN_PROP_GET_CMD $externals |") || die $!;
+	while(<SVNPG1>)
+	{
+		#regex: assignment              -r12532 https://source.sakaiproject.org/svn/assignment/tags/sakai_2-2-015
+		if(/^(\w+)\s+(.+)?\s+(.+)$/)
+		{
+			my $extModule = $1; my $extRevision = $2; my $extModuleUrl = $3;
+
+			# ensure source exists
+			my $sourcePath = "$SVN_BASE_URL/$extModule/$source";
+			my $sourceExists = svnPathExists($sourcePath);
+#			print "sourceExists=$sourceExists\n";
+			if($sourceExists == 0) # source does not exist
+			{
+				warn "WARN: Could not find: $sourcePath\n";
+				$allGood = 0;
+			}
+		}
+	}
+	close(SVNPG1) || die $!;	
+	return $allGood;
+}
+
+sub verifyAllDestinationsEmpty
+{
+	my $allGood = 1;
+	open(SVNPG2, "$SVN_PROP_GET_CMD $externals |") || die $!;
+	while(<SVNPG2>)
+	{
+		#regex: assignment              -r12532 https://source.sakaiproject.org/svn/assignment/tags/sakai_2-2-015
+		if(/^(\w+)\s+(.+)?\s+(.+)$/)
+		{
+			my $extModule = $1; my $extRevision = $2; my $extModuleUrl = $3;
+
+			# ensure source exists
+			my $destPath = "$SVN_BASE_URL/$extModule/$destination";
+			my $destExists = svnPathExists($destPath);
+#			print "destExists=$destExists\n";
+			if($destExists == 1) # destination already exists!
+			{
+				warn "WARN: Destination already exists: $destPath\n";
+				$allGood = 0;
+			}
+		}
+	}
+	close(SVNPG2) || die $!;	
+	return $allGood;
+}
+
+sub svnPathExists
+{
+	my $path = $_[0];
+	my $lsCommand = "$SVN_LS_CMD $path &> /dev/null";
+	if($debug){ print "$lsCommand\n"; }
+	system($lsCommand);
+	if($? > 0) { return 0; }
+	else {return 1; }
+}
