@@ -14,17 +14,21 @@ my $source;			# = tags/sakai-2-3-0
 my $destination;	# = branches/sakai_2-3-1
 my $revision;		# = 19793
 my $message;        # svn commit comment
+my $sourceExternal; # use the URL from the svn:externals property as the source
+my $dryrun;
 my $debug;
-my $command = GetOptions(	"externals=s"	=>	\$externals,	# string
-							"source=s"		=>  \$source,		# string
-							"destination=s"	=>	\$destination,	# string
-							"revision=s"	=>	\$revision,		# string
-							"message=s"		=>	\$message,		# string
-							"debug"			=>	\$debug);		# flag
+my $command = GetOptions(	"externals=s"		=>	\$externals,		# string
+							"source=s"			=>  \$source,			# string
+							"destination=s"		=>	\$destination,		# string
+							"revision=s"		=>	\$revision,			# string
+							"message=s"			=>	\$message,			# string
+							"sourceExternal"	=>	\$sourceExternal,	# flag
+							"dry-run"			=>	\$dryrun,			# flag
+							"debug"				=>	\$debug);			# flag
 unless($command){ die "Could not process command line options!\n"; }
-if($debug) { print "argv: externals=$externals source=$source destination=$destination revision=$revision message=\"$message\" debug=$debug \n"; }
+if($debug) { print "argv: externals=$externals source=$source destination=$destination revision=$revision message=\"$message\" sourceExternal=$sourceExternal dryrun=$dryrun debug=$debug \n"; }
 if($externals eq ""){ die "externals not specified!\n"; }
-if($source eq ""){ die "source is required!\n"; }
+if($source eq "" && $sourceExternal != 1){ die "source or sourceExternal is required!\n"; }
 if($destination eq "") { die "destination is required!\n"; }
 if($message eq "") { die "message is required!\n"; }
 
@@ -44,17 +48,34 @@ open(SVNPG, "$SVN_PROP_GET_CMD $externals |") || die $!;
 while(<SVNPG>)
 {
 	#regex: assignment              -r12532 https://source.sakaiproject.org/svn/assignment/tags/sakai_2-2-015
-	if(/^(\w+)\s+(.+)?\s+(.+)$/)
+	if(/^(\w+)\s+\-r(.+)?\s+(.+)$/)
 	{
 		my $extModule = $1; my $extRevision = $2; my $extModuleUrl = $3;
 		if($debug){ print "external: $extModule\t$extRevision\t$extModuleUrl\n"; }
 		
 		# compute svn copy command line string
-		my $sourcePath = "$SVN_BASE_URL/$extModule/$source";
+		my $sourcePath; my $sourceRevision;
+		if($sourceExternal == 1)
+		{
+			$sourcePath = $extModuleUrl;
+			$sourceRevision = $extRevision;
+		}
+		else
+		{
+			$sourcePath = "$SVN_BASE_URL/$extModule/$source";
+			$sourceRevision = "HEAD";
+		}
+
+		# compute destination path
 		my $destPath   = "$SVN_BASE_URL/$extModule/$destination";
-		my $localSvnCopyCmd = "$SVN_CP_CMD -r $revision $sourcePath $destPath -m \"$message\"";
+
+		# compute copy command
+		my $localSvnCopyCmd = "$SVN_CP_CMD -r $sourceRevision $sourcePath $destPath -m \"$message\"";
 		if($debug){ print "$localSvnCopyCmd\n"; }
-		system($localSvnCopyCmd);
+
+		# execute copy command
+		if($dryrun != 1) { system($localSvnCopyCmd); }
+		else { print "$localSvnCopyCmd\n"; }
 	}
 }
 close(SVNPG) || die $!;
