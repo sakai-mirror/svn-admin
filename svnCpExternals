@@ -1,5 +1,7 @@
 #!/usr/bin/perl
 
+#TODO: fix missing modules ; e.g. "test-harness"; all have "-"
+
 use Getopt::Long;
 
 # globals
