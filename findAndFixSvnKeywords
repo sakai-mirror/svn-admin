@@ -3,7 +3,7 @@
 sub TRUE  { 1; }
 sub FALSE { 0; }
 
-$rootDir = "/Users/lance/tmp/foo";
+my $rootDir = "/Users/lance/tmp/foo";
 
 open(FIND, "find $rootDir -print |") || die "$!";
 while(<FIND>)
