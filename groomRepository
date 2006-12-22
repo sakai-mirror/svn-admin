@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+
+use Getopt::Long;
+
+# globals
+sub TRUE  { 1; }
+sub FALSE { 0; }
+my $SVN_BASE_URL = "https://source.sakaiproject.org/svn";
+my $SVN_LS_CMD = "svn ls --non-interactive";
+my $SVN_CO_CMD = "svn co --non-interactive -q --ignore-externals";
+my $SVN_STATUS_CMD = "svn status --non-interactive";
+my $WORKINGDIR = "/tmp/svn-admin_groomRepository";
+
+# process command line options
+my $dryrun;
+my $debug;
+my $command = GetOptions(	"dry-run"			=>	\$dryrun,			# flag
+							"debug"				=>	\$debug);			# flag
+unless($command){ die "Could not process command line options!\n"; }
+if($debug) { print "DEBUG: argv= dryrun=$dryrun debug=$debug \n"; }
+
+open(SVNLSROOT, "$SVN_LS_CMD $SVN_BASE_URL |") || die $!;
+while(<SVNLSROOT>)
+{
+	# prepare working directory
+	if(-e $WORKINGDIR)
+	{
+		system("rm -rf $WORKINGDIR");		
+		if(-e $WORKINGDIR){ die "FATAL: could not remove working directory\n"; }
+	}
+	mkdir($WORKINGDIR) || die "FATAL: $!\n";
+	if(! -e $WORKINGDIR || ! -d $WORKINGDIR) { die "FATAL: working directory could not be created!\n"; }
+
+	#regex: announcement/
+	if(/^(.+)\/$/)
+	{
+		my $module = $1;
+		if($debug){ print "DEBUG: module: $module\n"; }
+
+		# checkout module
+		my $localSvnCoCmd = "$SVN_CO_CMD $SVN_BASE_URL/$module $WORKINGDIR/$module";
+		system($localSvnCoCmd);
+		
+		# find and fix svn:keywords
+		findAndFixSvnKeywords("$WORKINGDIR/$module");
+		
+		# svn propset svn:keywords "Date Revision Author HeadURL Id"
+		die;
+	}	
+}
+close(SVNLSROOT) || die $!;
+system("rm -rf $WORKINGDIR");		
+
+
+sub findAndFixSvnKeywords
+{
+	my $rootDir = $_[0];
+	if($debug){ print "DEBUG: findAndFixSvnKeywords($rootDir)\n"; }
+
+	open(FIND1, "find $rootDir -print |") || die "$!";
+	while(<FIND1>)
+	{
+	  if(/\/\.svn/) # skip .svn directories
+	  {
+	    next;
+	  }
+	  if(/\/tags\//) # skip tags directories
+	  {
+	    next;
+	  }
+	  if(/\.metaprops$/i) # skip *.metaprops files
+	  {
+	    next;
+	  }
+	  chomp;
+	  my $fileName = $_;
+	  open(FILE1, "file --brief $fileName |") || die "$!";
+	  while(<FILE1>)
+	  {
+	    chomp;
+	    if(/text/i) # found a text document
+	    {
+	      my $svnKeywords = FALSE;
+	      open(PROPGET1, "svn propget svn:keywords $fileName --non-interactive |") || die "$!";
+	      while(<PROPGET1>)
+	      {
+	        chomp;
+	        if(/Date\sRevision\sAuthor\sHeadURL\sId/)
+	        {
+	          $svnKeywords = TRUE;
+	        }
+	      }
+	      close(PROPGET1) || die "$!";
+
+	      if($svnKeywords == FALSE)
+	      {
+			my $svnPsCmd = "svn propset svn:keywords \"Date Revision Author HeadURL Id\" $fileName --non-interactive";
+			if($dryrun != TRUE) { system($svnPsCmd) || die "$!"; }
+	        else { print "$svnPsCmd\n"; }
+	      }
+	    }
+	  }
+	  close(FILE1) || die "$!";
+	}
+	close(FIND1) || die "$!";
+}
+
+sub workingCopyModified
+{
+	my $rootDir = $_[0];
+	if($debug){ print "DEBUG: workingCopyModified($rootDir)\n"; }
+
+}
+
+sub svnCommitWorkingCopy
+{
+	my $rootDir = $_[0];
+	if($debug){ print "DEBUG: svnCommitWorkingCopy($rootDir)\n"; }
+	
+}
